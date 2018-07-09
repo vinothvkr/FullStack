@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.Reflection;
 
 namespace FullStack.IS4Host
 {
@@ -27,8 +28,14 @@ namespace FullStack.IS4Host
 
         public void ConfigureServices(IServiceCollection services)
         {
+            //MSSQL Connection string
+            string connectionString = Configuration.GetConnectionString("DefaultConnection");
+            
+            //Migration Assembly
+            string migrationsAssembly = typeof(Startup).GetTypeInfo().Assembly.GetName().Name;
+
             services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseSqlite(Configuration.GetConnectionString("DefaultConnection")));
+                options.UseSqlServer(connectionString));
 
             services.AddIdentity<ApplicationUser, IdentityRole>()
                 .AddEntityFrameworkStores<ApplicationDbContext>()
@@ -49,9 +56,21 @@ namespace FullStack.IS4Host
                 options.Events.RaiseFailureEvents = true;
                 options.Events.RaiseSuccessEvents = true;
             })
-                .AddInMemoryIdentityResources(Config.GetIdentityResources())
-                .AddInMemoryApiResources(Config.GetApis())
-                .AddInMemoryClients(Config.GetClients())
+                // .AddInMemoryIdentityResources(Config.GetIdentityResources())
+                // .AddInMemoryApiResources(Config.GetApis())
+                // .AddInMemoryClients(Config.GetClients())
+
+                // Use Db for storing configuration data
+                .AddConfigurationStore(configDb => {
+                    configDb.ConfigureDbContext = db => db.UseSqlServer(connectionString,
+                    sql => sql.MigrationsAssembly(migrationsAssembly));
+                })
+
+                //Use Db to store oparational data
+                .AddConfigurationStore(operationalDb => {
+                    operationalDb.ConfigureDbContext = db => db.UseSqlServer(connectionString,
+                    sql => sql.MigrationsAssembly(migrationsAssembly));
+                })
                 .AddAspNetIdentity<ApplicationUser>();
 
             if (Environment.IsDevelopment())
